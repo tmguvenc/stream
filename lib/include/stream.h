@@ -14,6 +14,14 @@ typedef enum evt_types
 typedef int (*on_event_f)(const stream_evt_type_t type, const char* data,
                           const uint32_t data_len);
 
+typedef struct stream
+{
+  int fd;
+  int timer_fd;
+  int timeout_ms;
+  on_event_f callback;
+} stream_t;
+
 typedef struct stream_params
 {
   char path[MAX_PATH_LEN];
@@ -21,12 +29,9 @@ typedef struct stream_params
   on_event_f callback;
 } stream_params_t;
 
-void* stream_create(const stream_params_t* params);
-int stream_arm_timer(void* stream);
-int stream_disarm_timer(void* stream);
-int stream_get_timeout_ms(void* stream);
-int stream_get_fd(void* stream);
-int stream_get_timer_fd(void* stream);
-int stream_destroy(void* stream);
+stream_t* stream_create(const stream_params_t* params);
+int stream_arm_timer(stream_t* stream);
+int stream_disarm_timer(stream_t* stream);
+int stream_destroy(stream_t* stream);
 
 #endif  //! LIB_STREAM_H_
