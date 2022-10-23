@@ -4,6 +4,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/epoll.h>
+#include <stdatomic.h>
+#include "stream.h"
+
+typedef struct stream_manager
+{
+  stream_t** streams;
+  unsigned int max_stream_cnt;
+  unsigned int curr_cnt;
+  atomic_bool running;
+} stream_manager_t;
 
 stream_manager_t* stream_manager_create(unsigned int max_stream_cnt)
 {
@@ -23,6 +33,7 @@ stream_manager_t* stream_manager_create(unsigned int max_stream_cnt)
   }
 
   manager->max_stream_cnt = max_stream_cnt;
+  atomic_store(&manager->running, 0);
 
   return manager;
 }
@@ -102,7 +113,7 @@ static stream_t* get_stream(const stream_manager_t* manager, int fd)
   return NULL;
 }
 
-int stream_manager_run(const stream_manager_t* manager)
+int stream_manager_run(stream_manager_t* manager)
 {
   if (!manager)
   {
@@ -124,9 +135,11 @@ int stream_manager_run(const stream_manager_t* manager)
   }
 
   char buffer[4 * 1024];
-
   int nfds, i;
-  while (1)
+
+  atomic_store(&manager->running, 1);
+
+  while (atomic_load(&manager->running))
   {
     nfds = epoll_wait(epfd, events, manager->curr_cnt, -1);
     if (nfds == -1)
@@ -147,17 +160,19 @@ int stream_manager_run(const stream_manager_t* manager)
           continue;
         }
 
-        if (fd == stream->fd)
+        const int ret = read(fd, buffer, sizeof(buffer));
+        if (ret == -1)
         {
-          const int ret = read(fd, buffer, sizeof(buffer));
-          stream->callback(STREAM_EVT_RECV, buffer, ret);
+          fprintf(stderr, "read error: [%s]\n", strerror(errno));
+          continue;
         }
 
-        if (fd == stream->timer_fd)
-        {
-          const int ret = read(fd, buffer, sizeof(buffer));
-          stream->callback(STREAM_EVT_TIMEOUT, NULL, 0);
-        }
+        const stream_evt_type_t evt_type =
+            (fd == stream->fd) ? STREAM_EVT_RECV : STREAM_EVT_TIMEOUT;
+
+        stream_disarm_timer(stream);
+        stream->callback(evt_type, buffer, ret);
+        stream_arm_timer(stream);
       }
     }
   }
@@ -165,6 +180,18 @@ int stream_manager_run(const stream_manager_t* manager)
   free(events);
   close(epfd);
 
+  return 0;
+}
+
+int stream_manager_stop(stream_manager_t* manager)
+{
+  if (!manager)
+  {
+    fprintf(stderr, "invalid stream manager\n");
+    return -1;
+  }
+
+  atomic_store(&manager->running, 0);
   return 0;
 }
 
