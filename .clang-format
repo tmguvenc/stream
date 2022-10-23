@@ -1,0 +1,16 @@
+﻿---
+BasedOnStyle: Google
+AlignAfterOpenBracket: Align
+AlignConsecutiveMacros: 'true'
+AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Allman
+ColumnLimit: '80'
+IndentWidth: '2'
+MaxEmptyLinesToKeep: '2'
+SortIncludes: 'false'
+SpaceAfterCStyleCast: 'false'
+SpaceBeforeParens: ControlStatements
+TabWidth: '2'
+UseTab: Never
+
+...
