@@ -8,15 +8,7 @@
 #include <time.h>
 #include "utils.h"
 
-typedef struct stream
-{
-  int fd;
-  int timer_fd;
-  int timeout_ms;
-  on_event_f callback;
-} stream_t;
-
-void* stream_create(const stream_params_t* params)
+stream_t* stream_create(const stream_params_t* params)
 {
   if (!params)
   {
@@ -54,7 +46,7 @@ err:
   return NULL;
 }
 
-int stream_arm_timer(void* stream)
+int stream_arm_timer(stream_t* stream)
 {
   if (!stream)
   {
@@ -65,7 +57,7 @@ int stream_arm_timer(void* stream)
   struct timespec spec;
   struct timespec now;
 
-  convert_to_ts(stream_get_timeout_ms(stream), &spec);
+  convert_to_ts(stream->timeout_ms, &spec);
 
   if (clock_gettime(CLOCK_MONOTONIC, &now) == -1)
   {
@@ -89,8 +81,8 @@ int stream_arm_timer(void* stream)
   };
   // clang-format on
 
-  if (timerfd_settime(stream_get_timer_fd(stream), TFD_TIMER_ABSTIME,
-                      &new_value, NULL) == -1)
+  if (timerfd_settime(stream->timer_fd, TFD_TIMER_ABSTIME, &new_value, NULL) ==
+      -1)
   {
     fprintf(stderr, "cannot arm timer: [%s]\n", strerror(errno));
     return -1;
@@ -99,7 +91,7 @@ int stream_arm_timer(void* stream)
   return 0;
 }
 
-int stream_disarm_timer(void* stream)
+int stream_disarm_timer(stream_t* stream)
 {
   if (!stream)
   {
@@ -116,8 +108,8 @@ int stream_disarm_timer(void* stream)
 
   struct itimerspec new_value = {};
 
-  if (timerfd_settime(stream_get_timer_fd(stream), TFD_TIMER_ABSTIME,
-                      &new_value, NULL) == -1)
+  if (timerfd_settime(stream->timer_fd, TFD_TIMER_ABSTIME, &new_value, NULL) ==
+      -1)
   {
     fprintf(stderr, "cannot disarm timer: [%s]\n", strerror(errno));
     return -1;
@@ -126,13 +118,7 @@ int stream_disarm_timer(void* stream)
   return 0;
 }
 
-int stream_get_timeout_ms(void* stream) { ((stream_t*)stream)->timeout_ms; }
-
-int stream_get_fd(void* stream) { return ((stream_t*)stream)->fd; }
-
-int stream_get_timer_fd(void* stream) { return ((stream_t*)stream)->timer_fd; }
-
-int stream_destroy(void* stream)
+int stream_destroy(stream_t* stream)
 {
   if (!stream)
   {
@@ -140,14 +126,12 @@ int stream_destroy(void* stream)
     return -1;
   }
 
-  stream_t* str = (stream_t*)stream;
+  if (stream->fd != -1)
+    close(stream->fd);
 
-  if (str->fd != -1)
-    close(str->fd);
+  if (stream->timer_fd != -1)
+    close(stream->timer_fd);
 
-  if (str->timer_fd != -1)
-    close(str->timer_fd);
-
-  free(str);
+  free(stream);
   return 0;
 }
