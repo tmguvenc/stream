@@ -152,6 +152,12 @@ int stream_manager_run(const stream_manager_t* manager)
           const int ret = read(fd, buffer, sizeof(buffer));
           stream->callback(STREAM_EVT_RECV, buffer, ret);
         }
+
+        if (fd == stream->timer_fd)
+        {
+          const int ret = read(fd, buffer, sizeof(buffer));
+          stream->callback(STREAM_EVT_TIMEOUT, NULL, 0);
+        }
       }
     }
   }
